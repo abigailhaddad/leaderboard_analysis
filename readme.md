@@ -33,7 +33,8 @@ Two potential ways to expand this project are:
 
 1. Using Selenium to automatically pull the leaderboard table from the OpenAI site instead of manually copying and pasting it into an Excel file.
 
-2. Utilizing Selenium again to pull date information for the models that require interaction (clicking) on the model page before the commit histories become available.
+2. Utilizing Selenium again to pull date information for the models that require interaction (clicking) on the model page before the commit histories become available. (The models currently getting dropped are: 'llama-65b' 'llama-30b' 'bigcode/starcoderplus' 'llama-13b' 'alpaca-13b'
+ 'llama-7b' 'alessandropalla/instruct_gpt2')
 
 Please be aware that these extensions would introduce more complexity to the script and would require additional dependencies.
 

@@ -8,6 +8,13 @@ import dateparser
 import matplotlib.pyplot as plt
 
 def extract_hyperlinks(file_path, sheet_name, column_name):
+    """
+    Extract hyperlinks from a specified column in an Excel file and returns a dataframe
+    containing all data from the Excel file, with hyperlinks in the specified column replaced
+    with the hyperlink targets.
+    """
+    ...
+
     # Load your workbook
     wb = load_workbook(filename=file_path)
 
@@ -50,9 +57,12 @@ def extract_hyperlinks(file_path, sheet_name, column_name):
 
     return df
 
-
 def get_page_text(url):
-    # Send a GET request to the URL
+    """
+    Sends a GET request to the GitHub commits page corresponding to the provided url,
+    and returns the text content of the page.
+    """
+
     gitURL= url + "/commits/main"
     response = requests.get(gitURL)
     
@@ -139,10 +149,9 @@ def restructure_dataframe(df, start_date):
     return df_new
 
 
-def plot_scores(df, df_gpt, label_min_days=10):
+def plot_scores(df, df_gpt, label_min_days=15):
     fig, axs = plt.subplots(2, 2, figsize=(15, 10))
     fig.suptitle('HuggingFace Leaderboard Scores vs. GPT-3.5, GPT-4', fontsize=16)
-
 
     score_cols = ['ARC 25s ', 'HellaSwag 10s ', 'MMLU 5s ', 'TruthfulQA MC 0s ']
     gpt_colors = {'GPT-3.5': 'g', 'GPT-4': 'b'}
@@ -150,7 +159,17 @@ def plot_scores(df, df_gpt, label_min_days=10):
     for ax, col in zip(axs.flat, score_cols):
         if col in df_gpt.columns:
             for gpt in df_gpt.index:
-                ax.axhline(df_gpt.at[gpt, col], color=gpt_colors[gpt], linestyle='--', label=gpt)
+                start_time = pd.to_datetime(df_gpt.at[gpt, 'startingtime'])
+                if start_time < df.index[0]:  # if the start_time is before the first date in df, adjust start_time to the first date in df
+                    start_time = df.index[0]
+                end_time = df.index[-1]  # use the last date in df as the end time
+                x = pd.date_range(start=start_time, end=end_time, freq='D')  # create a date range from start_time to end_time
+                y = [df_gpt.at[gpt, col]] * len(x)  # create a list of the score repeated for each date in x
+                ax.plot(x, y, color=gpt_colors[gpt], linestyle='--')
+
+                # Add label to the line
+                midpoint = start_time + (end_time - start_time) / 2
+                ax.text(midpoint, df_gpt.at[gpt, col], gpt, ha='center')
 
         df[col].dropna().plot(ax=ax)
         ax.set_title(col)
@@ -158,14 +177,15 @@ def plot_scores(df, df_gpt, label_min_days=10):
         # Add model name labels to horizontal lines longer than label_min_days
         prev_val = None
         prev_date = None
+        last_date = df.index[-1]  # get the last date
         for date, val in df[col].items():
             if pd.isna(val):
                 continue
             if prev_val is None:
                 prev_val = val
                 prev_date = date
-            elif val != prev_val:
-                if (date - prev_date).days >= label_min_days:
+            elif val != prev_val or date == last_date:  # check if it's the last date
+                if (date - prev_date).days >= label_min_days or date == last_date:  # add condition to label the line if it's the last date
                     # Add a label at the midpoint of the line
                     midpoint = prev_date + (date - prev_date) / 2
                     # Get closest date in the index to the midpoint
@@ -174,14 +194,17 @@ def plot_scores(df, df_gpt, label_min_days=10):
                     ax.text(midpoint, prev_val, model_name, ha='center')
                 prev_val = val
                 prev_date = date
-        ax.legend(loc='lower right')
+
     plt.tight_layout()
     plt.savefig("leaderboard_scores.png")
     plt.show()
 
 
+
+
 def create_gpt_df():
     data = {
+        'startingtime': ['2022-11-28', '2023-03-14'],
         'ARC 25s ': [85.2, 96.3],  # Replace these with actual GPT-3.5 and GPT-4 scores
         'HellaSwag 10s ': [85.5, 95.3],  # Replace these with actual GPT-3.5 and GPT-4 scores
         'MMLU 5s ': [70.0, 86.4],  # Replace these with actual GPT-3.5 and GPT-4 scores
@@ -190,11 +213,15 @@ def create_gpt_df():
     return df_gpt
 
 
+
+
 def run_leaderboard_analysis(file_path, sheet_name, column_name, start_date):
     df = extract_hyperlinks(file_path, sheet_name, column_name)
+    print(df.loc[~df['URL'].astype(str).str.contains("https:")]['Model'].unique())
     df=df.loc[df['URL'].astype(str).str.contains("https:")]
     df['text']=df['URL'].apply(get_page_text)
     df['dates'] = df.apply(pull_dates, axis=1)
+    print(df.loc[df['dates'].astype(str).str.contains("https:")]['Model'].unique())
     df=df.loc[~df['dates'].astype(str).str.contains("https:")]
     df.columns = df.columns.str.replace('[^a-zA-Z0-9\s]', '', regex=True)
     df['first_commit_date']=df['dates'].apply(standardize_dates)
